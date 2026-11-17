@@ -1,0 +1,38 @@
+# Local development only. Real credentials come from Sealed Secrets or SOPS
+# in the cluster; never commit production secrets here.
+services:
+  db:
+    build: ./services/database
+    environment:
+      POSTGRES_USER: app
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-devpassword}
+      POSTGRES_DB: appdb
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U app -d appdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: ./services/api
+    environment:
+      DATABASE_URL: postgresql://app:${POSTGRES_PASSWORD:-devpassword}@db:5432/appdb
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "5000:5000"
+
+  frontend:
+    build: ./services/frontend
+    environment:
+      API_URL: http://api:5000
+    depends_on:
+      - api
+    ports:
+      - "8080:8080"
+
+volumes:
+  dbdata:
