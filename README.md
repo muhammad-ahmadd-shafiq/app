@@ -1,16 +1,10 @@
 # SecureGitOps Target Application
 
-![python](https://img.shields.io/badge/python-3.x-3776AB?style=flat-square&logo=python&logoColor=white)
-![framework](https://img.shields.io/badge/framework-Flask-000000?style=flat-square&logo=flask&logoColor=white)
-![database](https://img.shields.io/badge/database-PostgreSQL_16-336791?style=flat-square&logo=postgresql&logoColor=white)
 ![container](https://img.shields.io/badge/container-Docker-2496ED?style=flat-square&logo=docker&logoColor=white)
-![tests](https://img.shields.io/badge/tests-pytest-0A9EDC?style=flat-square&logo=pytest&logoColor=white)
 ![platform](https://img.shields.io/badge/platform-Linux-E67E22?style=flat-square&logo=linux&logoColor=white)
 ![deploy](https://img.shields.io/badge/deploy-GitOps_%2F_k3s-6D28D9?style=flat-square&logo=argo&logoColor=white)
 ![status](https://img.shields.io/badge/status-active-2EA44F?style=flat-square)
 ![security](https://img.shields.io/badge/security-DevSecOps-C0392B?style=flat-square)
-![category](https://img.shields.io/badge/category-Supply_Chain_Security-8E24AA?style=flat-square)
-![type](https://img.shields.io/badge/type-Final_Year_Project-F39C12?style=flat-square)
 
 A small three-service application (frontend, API, database) that serves as the deployment target for the **SecureGitOps** pipeline, a continuously verified CI/CD and GitOps pipeline with integrated attack simulation and a real-time security dashboard.
 
