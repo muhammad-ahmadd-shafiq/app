@@ -5,27 +5,27 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Task Board · Pipeline Operations &amp; Task Management</title>
   <style>
-    /* ——— dark navy + deep green palette ——— */
+    /* ——— light theme with green accents ——— */
     :root {
-      --ink: #e8edf5;
-      --ink-soft: #c4cddc;
-      --muted: #8b96a8;
-      --line: #2a3342;
-      --line-light: #1f2735;
-      --accent: #1f9d8b;
-      --accent-hover: #24b8a3;
-      --accent-subtle: rgba(31, 157, 139, 0.12);
-      --bg: #0b1220;
-      --card: #131c2b;
-      --card-hover: #182233;
-      --done-ink: #7d899b;
-      --ok: #4ade80;
-      --ok-bg: rgba(34, 197, 94, 0.14);
-      --warn: #fbbf24;
-      --warn-bg: rgba(251, 191, 36, 0.12);
-      --err: #f87171;
-      --err-bg: rgba(248, 113, 113, 0.08);
-      --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.25);
+      --ink: #1a2332;
+      --ink-soft: #3a4a5e;
+      --muted: #6b7a8f;
+      --line: #e2e8f0;
+      --line-light: #f1f5f9;
+      --accent: #0f766e;
+      --accent-hover: #14b8a6;
+      --accent-subtle: rgba(15, 118, 110, 0.08);
+      --bg: #f8fafc;
+      --card: #ffffff;
+      --card-hover: #f8fafc;
+      --done-ink: #94a3b8;
+      --ok: #16a34a;
+      --ok-bg: rgba(22, 163, 74, 0.08);
+      --warn: #d97706;
+      --warn-bg: rgba(217, 119, 6, 0.08);
+      --err: #dc2626;
+      --err-bg: rgba(220, 38, 38, 0.06);
+      --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.06), 0 1px 4px rgba(0, 0, 0, 0.04);
       --radius-sm: 10px;
       --radius-md: 16px;
       --radius-lg: 20px;
@@ -39,8 +39,8 @@
       font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
       color: var(--ink);
       background:
-        radial-gradient(700px circle at 12% 0%, rgba(31, 157, 139, 0.08), transparent 60%),
-        linear-gradient(180deg, #0b1220 0%, #0e1626 100%);
+        radial-gradient(700px circle at 12% 0%, rgba(15, 118, 110, 0.04), transparent 60%),
+        linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
       background-attachment: fixed;
       line-height: 1.5;
       min-height: 100vh;
@@ -81,11 +81,12 @@
       font-weight: 700;
       letter-spacing: -0.03em;
       margin: 0.5rem 0 0.75rem;
+      color: #0f172a;
     }
 
     h1 span {
       color: var(--accent);
-      text-shadow: 0 0 28px rgba(31, 157, 139, 0.35);
+      text-shadow: 0 0 28px rgba(15, 118, 110, 0.15);
     }
 
     .app-purpose {
@@ -105,9 +106,9 @@
       border-radius: 999px;
       font-size: 0.875rem;
       font-weight: 500;
-      color: var(--accent-hover);
+      color: var(--accent);
       background: var(--accent-subtle);
-      border: 1px solid rgba(31, 157, 139, 0.3);
+      border: 1px solid rgba(15, 118, 110, 0.2);
       white-space: nowrap;
     }
 
@@ -118,7 +119,7 @@
       height: 8px;
       border-radius: 50%;
       background: var(--accent-hover);
-      box-shadow: 0 0 0 4px rgba(31, 157, 139, 0.2);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.12);
       animation: pulse 2.4s ease-in-out infinite;
     }
 
@@ -136,16 +137,17 @@
       display: flex;
       flex-direction: column;
       gap: 0.4rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
     }
 
     .stat.wide { flex: 2 1 20rem; gap: 0.8rem; }
     .stat-label { font-size: 0.875rem; font-weight: 500; color: var(--muted); }
-    .stat-num { font-size: 2.25rem; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
+    .stat-num { font-size: 2.25rem; font-weight: 700; line-height: 1; letter-spacing: -0.02em; color: #0f172a; }
     .stat-row { display: flex; align-items: baseline; justify-content: space-between; }
-    .stat-row strong { font-size: 1.25rem; }
+    .stat-row strong { font-size: 1.25rem; color: #0f172a; }
     .stat-foot { font-size: 0.8125rem; color: var(--muted); }
 
-    .bar { height: 10px; border-radius: 999px; background: #1d283a; overflow: hidden; }
+    .bar { height: 10px; border-radius: 999px; background: #e2e8f0; overflow: hidden; }
     .bar > i { display: block; height: 100%; border-radius: 999px; background: linear-gradient(90deg, var(--accent), var(--accent-hover)); }
 
     /* ——— layout ——— */
@@ -176,17 +178,17 @@
       padding: 0 1.1rem;
       border: 1px solid var(--line);
       border-radius: var(--radius-sm);
-      background: #0f1827;
+      background: #ffffff;
       color: var(--ink);
       font: inherit;
       font-size: 1rem;
       transition: border-color 0.15s ease, box-shadow 0.15s ease;
     }
-    input[type="text"]::placeholder { color: var(--muted); }
+    input[type="text"]::placeholder { color: #94a3b8; }
     input[type="text"]:focus {
       outline: none;
       border-color: var(--accent);
-      box-shadow: 0 0 0 3px rgba(31, 157, 139, 0.2);
+      box-shadow: 0 0 0 3px rgba(15, 118, 110, 0.12);
     }
 
     .btn-primary {
@@ -195,7 +197,7 @@
       border: 0;
       border-radius: var(--radius-sm);
       background: var(--accent);
-      color: #041411;
+      color: #ffffff;
       font: inherit;
       font-size: 1rem;
       font-weight: 600;
@@ -206,7 +208,7 @@
       white-space: nowrap;
       transition: background 0.15s ease, box-shadow 0.15s ease;
     }
-    .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 0 20px rgba(31, 157, 139, 0.3); }
+    .btn-primary:hover { background: var(--accent-hover); box-shadow: 0 0 20px rgba(15, 118, 110, 0.25); }
 
     /* ——— filter tabs ——— */
     .filters { display: flex; flex-wrap: wrap; gap: 0.5rem; padding: 0 1.25rem 1rem; }
@@ -228,16 +230,16 @@
       transition: background 0.15s ease, border-color 0.15s ease;
     }
     .tab:hover { background: var(--card-hover); }
-    .tab[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #041411; font-weight: 600; }
+    .tab[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #ffffff; font-weight: 600; }
     .tab b {
       font-size: 0.75rem;
       min-width: 1.4rem;
       padding: 0.1rem 0.4rem;
       border-radius: 999px;
-      background: rgba(255, 255, 255, 0.08);
+      background: rgba(0, 0, 0, 0.06);
       text-align: center;
     }
-    .tab[aria-pressed="true"] b { background: rgba(4, 20, 17, 0.18); }
+    .tab[aria-pressed="true"] b { background: rgba(255, 255, 255, 0.2); }
 
     /* ——— task list ——— */
     ul { list-style: none; margin: 0; padding: 0; }
@@ -271,7 +273,7 @@
       width: 24px;
       height: 24px;
       border-radius: 7px;
-      border: 2px solid #5f6b7c;
+      border: 2px solid #cbd5e1;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -295,7 +297,7 @@
       line-height: 1.4;
       word-break: break-word;
     }
-    li.done .title { text-decoration: line-through; text-decoration-color: #5f6b7c; color: var(--done-ink); font-weight: 400; }
+    li.done .title { text-decoration: line-through; text-decoration-color: #cbd5e1; color: var(--done-ink); font-weight: 400; }
 
     .chip {
       flex: none;
@@ -321,7 +323,7 @@
     .error {
       background: var(--err-bg);
       color: var(--err);
-      border: 1px solid rgba(248, 113, 113, 0.3);
+      border: 1px solid rgba(220, 38, 38, 0.2);
       padding: 0.8rem 1rem;
       border-radius: var(--radius-sm);
       font-size: 0.9rem;
@@ -340,6 +342,7 @@
       display: flex;
       flex-direction: column;
       gap: 1.1rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.03);
     }
     .system h2 {
       margin: 0;
@@ -354,10 +357,10 @@
       width: 2.25rem; height: 2.25rem; flex: none;
       border-radius: 10px;
       display: flex; align-items: center; justify-content: center;
-      background: var(--accent-subtle); color: var(--accent-hover);
+      background: var(--accent-subtle); color: var(--accent);
     }
     .sys-icon.ok { background: var(--ok-bg); color: var(--ok); }
-    .sys-item strong { display: block; font-size: 0.95rem; font-weight: 600; }
+    .sys-item strong { display: block; font-size: 0.95rem; font-weight: 600; color: #0f172a; }
     .sys-item span { font-size: 0.875rem; color: var(--muted); }
     .sys-item em { font-style: normal; font-weight: 500; color: var(--ink-soft); }
 
@@ -444,7 +447,7 @@
             <input type="hidden" name="done" value="{{ 'false' if task.done else 'true' }}">
             <button class="check" type="submit" aria-label="{{ 'Mark as open' if task.done else 'Mark as done' }}: {{ task.title }}">
               <span class="box">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#041411" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>
               </span>
             </button>
           </form>
