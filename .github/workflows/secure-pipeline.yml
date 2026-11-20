@@ -1,0 +1,199 @@
+# SecureGitOps pipeline (Phase 2). Replaces baseline.yml.
+#
+# ADJUST markers show what to compare with your working baseline.yml:
+#   1. test job commands
+#   2. docker build contexts (./api and ./frontend)
+#   3. how you log in to GHCR
+#   4. the kustomize image names and path in the update-gitops job
+name: secure-pipeline
+
+on:
+  push:
+    branches: ["**"]
+  workflow_dispatch:
+    inputs:
+      gates_enforce:
+        description: "true = a failed gate stops the pipeline, false = gates only report"
+        type: choice
+        options: ["true", "false"]
+        default: "true"
+
+permissions:
+  contents: read
+
+env:
+  ENFORCE: ${{ inputs.gates_enforce || 'true' }}
+  DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
+  DASHBOARD_API_KEY: ${{ secrets.DASHBOARD_API_KEY }}
+  IMAGE_OWNER: muhammad-ahmadd-shafiq
+  GITOPS_REPO: muhammad-ahmadd-shafiq/gitops-config
+
+jobs:
+  # ---------------------------------------------------------------- tests
+  test:
+    runs-on: [self-hosted, lab]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Run tests
+        run: |
+          # ADJUST: copy your real test commands from baseline.yml
+          if [ -f api/requirements.txt ]; then
+            python3 -m venv .venv && . .venv/bin/activate
+            pip install -q -r api/requirements.txt pytest
+          fi
+          if [ -d api/tests ]; then pytest -q api/tests; else echo "No tests found, skipping"; fi
+      - name: Report
+        if: always()
+        env:
+          STAGE: test
+          TOOL: pytest
+          STATUS: ${{ job.status == 'success' && 'pass' || 'fail' }}
+          REPORT_ONLY: "true"
+        run: bash .github/scripts/report.sh
+
+  # ---------------------------------------------------------------- gates (run in parallel)
+  gitleaks:
+    runs-on: [self-hosted, lab]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: bash .github/scripts/scan-gitleaks.sh
+
+  semgrep:
+    runs-on: [self-hosted, lab]
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash .github/scripts/scan-semgrep.sh
+
+  trivy-fs:
+    runs-on: [self-hosted, lab]
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash .github/scripts/trivy.sh fs . trivy-fs
+
+  sbom-source:
+    runs-on: [self-hosted, lab]
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash .github/scripts/sbom.sh dir:. sbom-source
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sbom-source
+          path: sbom-source.json
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------- build, scan image, push, sign
+  build:
+    needs: [test, gitleaks, semgrep, trivy-fs, sbom-source]
+    runs-on: [self-hosted, lab]
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Log in to GHCR
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # ADJUST if your baseline uses a PAT secret
+        run: echo "$GH_TOKEN" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+
+      - name: Build images
+        run: |
+          for svc in api frontend; do   # ADJUST build contexts
+            docker build -t "ghcr.io/${IMAGE_OWNER}/target-${svc}:${GITHUB_SHA}" "./${svc}"
+          done
+
+      - name: Scan images with Trivy (gate before push)
+        run: |
+          rc=0
+          for svc in api frontend; do
+            bash .github/scripts/trivy.sh image "ghcr.io/${IMAGE_OWNER}/target-${svc}:${GITHUB_SHA}" "image-scan-${svc}" || rc=1
+          done
+          exit $rc
+
+      - name: Push images
+        run: |
+          for svc in api frontend; do
+            docker push "ghcr.io/${IMAGE_OWNER}/target-${svc}:${GITHUB_SHA}"
+          done
+
+      - name: Sign images with Cosign
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+        run: |
+          START=$(date +%s)
+          rc=0
+          for svc in api frontend; do
+            REF=$(docker inspect --format '{{index .RepoDigests 0}}' "ghcr.io/${IMAGE_OWNER}/target-${svc}:${GITHUB_SHA}")
+            cosign sign --yes --key env://COSIGN_PRIVATE_KEY --tlog-upload=false "$REF" || rc=1
+          done
+          if [ $rc -eq 0 ]; then S=pass; else S=fail; fi
+          STAGE=sign TOOL=cosign STATUS=$S DURATION=$(( $(date +%s) - START )) bash .github/scripts/report.sh
+
+      - name: SBOM of images
+        run: |
+          for svc in api frontend; do
+            bash .github/scripts/sbom.sh "docker:ghcr.io/${IMAGE_OWNER}/target-${svc}:${GITHUB_SHA}" "sbom-image-${svc}"
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: sbom-images
+          path: sbom-image-*.json
+          if-no-files-found: ignore
+
+  # ---------------------------------------------------------------- deploy (main branch only)
+  update-gitops:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, lab]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Update image tags in gitops-config
+        env:
+          GITOPS_DEPLOY_KEY: ${{ secrets.GITOPS_DEPLOY_KEY }}
+        run: |
+          set -euo pipefail
+          # ADJUST: if your baseline update-gitops job works, keep yours and only keep "needs: build" above
+          KEY=$(mktemp); printf '%s\n' "$GITOPS_DEPLOY_KEY" > "$KEY"; chmod 600 "$KEY"
+          export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
+          rm -rf gitops-config
+          git clone "git@github.com:${GITOPS_REPO}.git" gitops-config
+          cd gitops-config/apps/target-app
+          for svc in api frontend; do
+            kustomize edit set image "ghcr.io/${IMAGE_OWNER}/target-${svc}=ghcr.io/${IMAGE_OWNER}/target-${svc}:${GITHUB_SHA}"
+          done
+          cd ../..
+          git config user.name "secure-pipeline"
+          git config user.email "pipeline@users.noreply.github.com"
+          git add -A
+          git commit -m "deploy: ${GITHUB_SHA::7} from app repo" || echo "No changes to commit"
+          git push origin HEAD:main
+          rm -f "$KEY"
+      - name: Report
+        if: always()
+        env:
+          STAGE: update-gitops
+          TOOL: kustomize
+          STATUS: ${{ job.status == 'success' && 'pass' || 'fail' }}
+          REPORT_ONLY: "true"
+        run: bash .github/scripts/report.sh
+
+  # ---------------------------------------------------------------- overall result
+  finalize:
+    if: always()
+    needs: [test, gitleaks, semgrep, trivy-fs, sbom-source, build, update-gitops]
+    runs-on: [self-hosted, lab]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Report pipeline result
+        env:
+          STAGE: pipeline
+          TOOL: github-actions
+          STATUS: ${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && 'fail' || 'pass' }}
+          REPORT_ONLY: "true"
+        run: bash .github/scripts/report.sh
