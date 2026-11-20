@@ -37,11 +37,11 @@ jobs:
       - name: Run tests
         run: |
           # ADJUST: copy your real test commands from baseline.yml
-          if [ -f api/requirements.txt ]; then
+          if [ -f services/api/requirements.txt ]; then
             python3 -m venv .venv && . .venv/bin/activate
-            pip install -q -r api/requirements.txt pytest
+            pip install -q -r services/api/requirements.txt pytest
           fi
-          if [ -d api/tests ]; then pytest -q api/tests; else echo "No tests found, skipping"; fi
+          if [ -d services/api/tests ]; then pytest -q services/api/tests; else echo "No tests found, skipping"; fi
       - name: Report
         if: always()
         env:
@@ -102,7 +102,7 @@ jobs:
       - name: Build images
         run: |
           for svc in api frontend; do   # ADJUST build contexts
-            docker build -t "ghcr.io/${IMAGE_OWNER}/target-${svc}:${GITHUB_SHA}" "./${svc}"
+            docker build -t "ghcr.io/${IMAGE_OWNER}/target-${svc}:${GITHUB_SHA}" "./services/${svc}"
           done
 
       - name: Scan images with Trivy (gate before push)
