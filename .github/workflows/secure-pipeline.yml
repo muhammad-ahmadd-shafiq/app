@@ -93,6 +93,8 @@ jobs:
 
   sbom-source:
     runs-on: [self-hosted, lab]
+    env:
+      DASHBOARD_API_KEY: ${{ secrets.DASHBOARD_API_KEY }}
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - run: bash .github/scripts/sbom.sh dir:. sbom-source
