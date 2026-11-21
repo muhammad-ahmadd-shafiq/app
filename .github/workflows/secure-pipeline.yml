@@ -1,8 +1,17 @@
-# SecureGitOps pipeline (Phase 2). Replaces baseline.yml.
+# SecureGitOps pipeline (Phase 3: hybrid scoring gate).
+#
+# Hybrid behaviour:
+#   - scan jobs (gitleaks, semgrep, trivy-fs) use continue-on-error, so they
+#     report their findings to the dashboard but never stop the run themselves
+#   - the image scan and signing steps in the build job also report only
+#   - the score job reads everything from the dashboard, applies the hybrid
+#     policy (hard blockers always fail, the rest is scored) and is the only gate
+#   - update-gitops depends on the score job, so a failed verdict blocks deploy
+#     when ENFORCE is true
 #
 # ADJUST markers show what to compare with your working baseline.yml:
 #   1. test job commands
-#   2. docker build contexts (./api and ./frontend)
+#   2. docker build contexts
 #   3. how you log in to GHCR
 #   4. the kustomize image names and path in the update-gitops job
 name: secure-pipeline
@@ -13,7 +22,7 @@ on:
   workflow_dispatch:
     inputs:
       gates_enforce:
-        description: "true = a failed gate stops the pipeline, false = gates only report"
+        description: "true = a failed score verdict stops the deploy, false = gates only report"
         type: choice
         options: ["true", "false"]
         default: "true"
@@ -51,9 +60,10 @@ jobs:
           REPORT_ONLY: "true"
         run: bash .github/scripts/report.sh
 
-  # ---------------------------------------------------------------- gates (run in parallel)
+  # ---------------------------------------------------------------- scans (run in parallel, report only)
   gitleaks:
     runs-on: [self-hosted, lab]
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
         with:
@@ -62,12 +72,14 @@ jobs:
 
   semgrep:
     runs-on: [self-hosted, lab]
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - run: bash .github/scripts/scan-semgrep.sh
 
   trivy-fs:
     runs-on: [self-hosted, lab]
+    continue-on-error: true
     steps:
       - uses: actions/checkout@v4
       - run: bash .github/scripts/trivy.sh fs . trivy-fs
@@ -105,13 +117,13 @@ jobs:
             docker build -t "ghcr.io/${IMAGE_OWNER}/target-${svc}:${GITHUB_SHA}" "./services/${svc}"
           done
 
-      - name: Scan images with Trivy (gate before push)
+      # Stage names start with "trivy" so the scoring policy matches them.
+      - name: Scan images with Trivy (report only, the score job decides)
         run: |
-          rc=0
           for svc in api frontend; do
-            bash .github/scripts/trivy.sh image "ghcr.io/${IMAGE_OWNER}/target-${svc}:${GITHUB_SHA}" "image-scan-${svc}" || rc=1
+            bash .github/scripts/trivy.sh image "ghcr.io/${IMAGE_OWNER}/target-${svc}:${GITHUB_SHA}" "trivy-image-${svc}" \
+              || echo "trivy-image-${svc} reported findings"
           done
-          exit $rc
 
       - name: Push images
         run: |
@@ -131,7 +143,7 @@ jobs:
             cosign sign --yes --key env://COSIGN_PRIVATE_KEY --tlog-upload=false "$REF" || rc=1
           done
           if [ $rc -eq 0 ]; then S=pass; else S=fail; fi
-          STAGE=sign TOOL=cosign STATUS=$S DURATION=$(( $(date +%s) - START )) bash .github/scripts/report.sh
+          STAGE=sign TOOL=cosign STATUS=$S REPORT_ONLY=true DURATION=$(( $(date +%s) - START )) bash .github/scripts/report.sh
 
       - name: SBOM of images
         run: |
@@ -146,9 +158,30 @@ jobs:
           path: sbom-image-*.json
           if-no-files-found: ignore
 
+  # ---------------------------------------------------------------- score gate (hybrid)
+  score:
+    needs: [gitleaks, semgrep, trivy-fs, build]
+    if: ${{ always() }}
+    runs-on: [self-hosted, lab]
+    outputs:
+      verdict: ${{ steps.s.outputs.verdict }}
+    steps:
+      - id: s
+        run: |
+          RESULT=$(curl -sf -X POST \
+            "${DASHBOARD_URL}/api/builds/run/${GITHUB_RUN_ID}/score" \
+            -H "X-API-Key: ${DASHBOARD_API_KEY}")
+          echo "$RESULT"
+          VERDICT=$(echo "$RESULT" | jq -r .verdict)
+          echo "verdict=$VERDICT" >> "$GITHUB_OUTPUT"
+          if [ "$VERDICT" = "fail" ] && [ "$ENFORCE" = "true" ]; then
+            echo "Build blocked by score gate"
+            exit 1
+          fi
+
   # ---------------------------------------------------------------- deploy (main branch only)
   update-gitops:
-    needs: build
+    needs: [build, score]
     if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, lab]
     steps:
@@ -158,7 +191,7 @@ jobs:
           GITOPS_DEPLOY_KEY: ${{ secrets.GITOPS_DEPLOY_KEY }}
         run: |
           set -euo pipefail
-          # ADJUST: if your baseline update-gitops job works, keep yours and only keep "needs: build" above
+          # ADJUST: if your baseline update-gitops job works, keep yours and only keep the needs line above
           KEY=$(mktemp); printf '%s\n' "$GITOPS_DEPLOY_KEY" > "$KEY"; chmod 600 "$KEY"
           export GIT_SSH_COMMAND="ssh -i $KEY -o IdentitiesOnly=yes -o StrictHostKeyChecking=accept-new"
           rm -rf gitops-config
@@ -186,7 +219,7 @@ jobs:
   # ---------------------------------------------------------------- overall result
   finalize:
     if: always()
-    needs: [test, gitleaks, semgrep, trivy-fs, sbom-source, build, update-gitops]
+    needs: [test, gitleaks, semgrep, trivy-fs, sbom-source, build, score, update-gitops]
     runs-on: [self-hosted, lab]
     steps:
       - uses: actions/checkout@v4
@@ -194,6 +227,6 @@ jobs:
         env:
           STAGE: pipeline
           TOOL: github-actions
-          STATUS: ${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')) && 'fail' || 'pass' }}
+          STATUS: ${{ (contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') || needs.score.outputs.verdict == 'fail') && 'fail' || 'pass' }}
           REPORT_ONLY: "true"
         run: bash .github/scripts/report.sh
