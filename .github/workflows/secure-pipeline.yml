@@ -33,7 +33,6 @@ permissions:
 env:
   ENFORCE: ${{ inputs.gates_enforce || 'true' }}
   DASHBOARD_URL: ${{ vars.DASHBOARD_URL }}
-  DASHBOARD_API_KEY: ${{ secrets.DASHBOARD_API_KEY }}
   IMAGE_OWNER: muhammad-ahmadd-shafiq
   GITOPS_REPO: muhammad-ahmadd-shafiq/gitops-config
 
@@ -41,8 +40,10 @@ jobs:
   # ---------------------------------------------------------------- tests
   test:
     runs-on: [self-hosted, lab]
+    env:
+      DASHBOARD_API_KEY: ${{ secrets.DASHBOARD_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Run tests
         run: |
           # ADJUST: copy your real test commands from baseline.yml
@@ -63,33 +64,39 @@ jobs:
   # ---------------------------------------------------------------- scans (run in parallel, report only)
   gitleaks:
     runs-on: [self-hosted, lab]
+    env:
+      DASHBOARD_API_KEY: ${{ secrets.DASHBOARD_API_KEY }}
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
         with:
           fetch-depth: 0
       - run: bash .github/scripts/scan-gitleaks.sh
 
   semgrep:
     runs-on: [self-hosted, lab]
+    env:
+      DASHBOARD_API_KEY: ${{ secrets.DASHBOARD_API_KEY }}
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - run: bash .github/scripts/scan-semgrep.sh
 
   trivy-fs:
     runs-on: [self-hosted, lab]
+    env:
+      DASHBOARD_API_KEY: ${{ secrets.DASHBOARD_API_KEY }}
     continue-on-error: true
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - run: bash .github/scripts/trivy.sh fs . trivy-fs
 
   sbom-source:
     runs-on: [self-hosted, lab]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - run: bash .github/scripts/sbom.sh dir:. sbom-source
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: sbom-source
@@ -100,11 +107,13 @@ jobs:
   build:
     needs: [test, gitleaks, semgrep, trivy-fs, sbom-source]
     runs-on: [self-hosted, lab]
+    env:
+      DASHBOARD_API_KEY: ${{ secrets.DASHBOARD_API_KEY }}
     permissions:
       contents: read
       packages: write
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Log in to GHCR
         env:
@@ -151,7 +160,7 @@ jobs:
             bash .github/scripts/sbom.sh "docker:ghcr.io/${IMAGE_OWNER}/target-${svc}:${GITHUB_SHA}" "sbom-image-${svc}"
           done
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         if: always()
         with:
           name: sbom-images
@@ -163,6 +172,8 @@ jobs:
     needs: [gitleaks, semgrep, trivy-fs, build]
     if: ${{ always() }}
     runs-on: [self-hosted, lab]
+    env:
+      DASHBOARD_API_KEY: ${{ secrets.DASHBOARD_API_KEY }}
     outputs:
       verdict: ${{ steps.s.outputs.verdict }}
     steps:
@@ -184,8 +195,10 @@ jobs:
     needs: [build, score]
     if: github.ref == 'refs/heads/main'
     runs-on: [self-hosted, lab]
+    env:
+      DASHBOARD_API_KEY: ${{ secrets.DASHBOARD_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Update image tags in gitops-config
         env:
           GITOPS_DEPLOY_KEY: ${{ secrets.GITOPS_DEPLOY_KEY }}
@@ -221,8 +234,10 @@ jobs:
     if: always()
     needs: [test, gitleaks, semgrep, trivy-fs, sbom-source, build, score, update-gitops]
     runs-on: [self-hosted, lab]
+    env:
+      DASHBOARD_API_KEY: ${{ secrets.DASHBOARD_API_KEY }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
       - name: Report pipeline result
         env:
           STAGE: pipeline
