@@ -1,10 +1,16 @@
 #!/usr/bin/env bash
 # Static analysis. Semgrep ERROR fails the gate, WARNING gives a warn.
+#
+# Excluded rule: python.django.security.django-no-csrf-token
+# Reason: it is written for Django templates. The target app is Flask, so the
+# rule reports forms in index.html that Django would need a csrf_token tag for.
+# Review the forms manually if they change state with cookie based sessions.
 set -uo pipefail
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 START=$(date +%s)
 
-semgrep scan --config p/default --metrics=off --json --output semgrep-report.json --quiet . || true
+semgrep scan --config p/default --metrics=off --json --output semgrep-report.json --quiet \
+  --exclude-rule python.django.security.django-no-csrf-token.django-no-csrf-token . || true
 if [ ! -s semgrep-report.json ]; then
   echo "Semgrep produced no report"
   STAGE=semgrep TOOL=semgrep STATUS=fail bash "$HERE/report.sh"
